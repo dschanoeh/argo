@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -39,6 +40,16 @@ func main() {
 		l.Fatal("Could not parse config file\n", err)
 	}
 
+	config.InputFolder, err = filepath.Abs(config.InputFolder)
+	if err != nil {
+		l.Fatal("Could not parse input folder name\n", err)
+	}
+
+	config.OutputFolder, err = filepath.Abs(config.OutputFolder)
+	if err != nil {
+		l.Fatal("Could not parse output folder name\n", err)
+	}
+
 	fmt.Println("Reading from input folder " + config.InputFolder)
 
 	files, err := ioutil.ReadDir(config.InputFolder)
@@ -46,7 +57,13 @@ func main() {
 		l.Fatal(err)
 	}
 
-	for _, file := range files {
+	for i, file := range files {
+		// Skip directories
+		if file.IsDir() {
+			continue
+		}
+
+		fmt.Printf("Processing file %s [%d / %d]\n", file.Name(), i+1, len(files))
 		handleFile(file, config.InputFolder)
 	}
 }
@@ -62,9 +79,7 @@ func handleFile(file os.FileInfo, path string) {
 		return
 	}
 
-	fmt.Println("Processing file: " + file.Name())
-
-	filename := path + file.Name()
+	filename := path + string(os.PathSeparator) + file.Name()
 
 	width, height, _ := getDimensions(filename)
 	fmt.Printf("\tOriginal dimensions: %d x %d\n", width, height)
@@ -77,7 +92,7 @@ func handleFile(file os.FileInfo, path string) {
 		quality := config.Qualities[i]
 
 		if width < targetWidth {
-			fmt.Printf(color.Red("Warning: File is smaller than minimum width (%d px).\n"), targetWidth)
+			fmt.Printf(color.Red("\tWarning: File is smaller than minimum width (%d px).\n"), targetWidth)
 		}
 
 		fileNameIn, fileNameOut := fullFileNames(file.Name(), suffix)
@@ -89,10 +104,12 @@ func handleFile(file os.FileInfo, path string) {
 		}
 
 		fmt.Printf("\t→ %s", fileNameOut)
+
 		err := writeToOutput(fileNameIn, fileNameOut, targetWidth, quality)
 
 		if err != nil {
-			l.Fatal(err)
+			fmt.Printf(color.Red(" ✘ failed\n"))
+			continue
 		}
 
 		newSize := getSize(fileNameOut)
@@ -110,8 +127,8 @@ func fullFileNames(fileName string, suffix string) (string, string) {
 	splits := strings.Split(fileName, ".")
 	name := splits[0]
 	extension := splits[1]
-	fileNameIn := config.InputFolder + name + "." + extension
-	fileNameOut := config.OutputFolder + name + suffix + "." + extension
+	fileNameIn := config.InputFolder + string(os.PathSeparator) + name + "." + extension
+	fileNameOut := config.OutputFolder + string(os.PathSeparator) + name + suffix + "." + extension
 	return fileNameIn, fileNameOut
 }
 
@@ -126,7 +143,8 @@ func writeToOutput(fileNameIn string, fileNameOut string, width int, quality int
 		params = append(params, "JPEG")
 	}
 	params = append(params, fileNameOut)
-	_, err := exec.Command("convert", params...).Output()
+	cmd := exec.Command("convert", params...)
+	err := cmd.Run()
 	return err
 }
 

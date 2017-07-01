@@ -1,7 +1,7 @@
 # folder with input files
-inputFolder = "/home/dschanoeh/input/"
+inputFolder = "./input/"
 # folder with output files
-outputFolder = "/home/dschanoeh/output/"
+outputFolder = "./output/"
 # suffixes to be assigned to the different sizes
 suffixes = ["", "@1x"]
 # widths for the suffixes
