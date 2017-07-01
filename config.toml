@@ -1,0 +1,14 @@
+# folder with input files
+inputFolder = "/home/dschanoeh/input/"
+# folder with output files
+outputFolder = "/home/dschanoeh/output/"
+# suffixes to be assigned to the different sizes
+suffixes = ["", "@1x"]
+# widths for the suffixes
+widths = [1520, 760]
+# JPEG qualities to be used when saving
+qualities = [85, 75]
+# Don't overwrite existing files
+noOverwrite = false
+# Progressive JPEG
+progressive = true
