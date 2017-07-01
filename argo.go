@@ -24,23 +24,35 @@ type Config struct {
 }
 
 var config Config
+var l log.Logger
 
 func main() {
+	l := log.New(os.Stderr, "", 0)
+
+	if len(os.Args) != 2 {
+		usage()
+		l.Fatal("No config file provided\n")
+	}
+
 	_, err := toml.DecodeFile(os.Args[1], &config)
 	if err != nil {
-		log.Fatal(err)
+		l.Fatal("Could not parse config file\n", err)
 	}
 
 	fmt.Println("Reading from input folder " + config.InputFolder)
 
 	files, err := ioutil.ReadDir(config.InputFolder)
 	if err != nil {
-		log.Fatal(err)
+		l.Fatal(err)
 	}
 
 	for _, file := range files {
 		handleFile(file, config.InputFolder)
 	}
+}
+
+func usage() {
+	fmt.Printf("Usage: argo config.toml\n")
 }
 
 func handleFile(file os.FileInfo, path string) {
@@ -50,37 +62,37 @@ func handleFile(file os.FileInfo, path string) {
 		return
 	}
 
-	fmt.Println("File: " + file.Name())
+	fmt.Println("Processing file: " + file.Name())
 
 	filename := path + file.Name()
 
 	width, height, _ := getDimensions(filename)
-	fmt.Printf("\tDimensions: %d x %d\n", width, height)
+	fmt.Printf("\tOriginal dimensions: %d x %d\n", width, height)
 	size := getSize(filename)
-	fmt.Printf("\tSize: %d kb\n", size/1024)
+	fmt.Printf("\tOriginal size: %d kb\n", size/1024)
 
 	for i, _ := range config.Suffixes {
 		suffix := config.Suffixes[i]
 		targetWidth := config.Widths[i]
 		quality := config.Qualities[i]
 
-		if width < config.MinWidth {
-			fmt.Printf(color.Red("Warning: File is smaller than minimum width (%d kb)\n"), config.MinWidth)
+		if width < targetWidth {
+			fmt.Printf(color.Red("Warning: File is smaller than minimum width (%d px).\n"), targetWidth)
 		}
 
 		fileNameIn, fileNameOut := fullFileNames(file.Name(), suffix)
 
 		// Skip it the output file exists
 		if config.NoOverwrite && fileExists(fileNameOut) {
-			fmt.Printf("\t-x- %s", fileNameOut)
+			fmt.Printf("\t✓ skipping (exists) %s", fileNameOut)
 			continue
 		}
 
-		fmt.Printf("\t--> %s", fileNameOut)
+		fmt.Printf("\t→ %s", fileNameOut)
 		err := writeToOutput(fileNameIn, fileNameOut, targetWidth, quality)
 
 		if err != nil {
-			log.Fatal(err)
+			l.Fatal(err)
 		}
 
 		newSize := getSize(fileNameOut)
@@ -138,7 +150,7 @@ func getSize(fileName string) int64 {
 func getDimensions(filename string) (int, int, error) {
 	out, err := exec.Command("identify", []string{"-ping", "-format", "\"%[w]:%[h]\"", filename}...).Output()
 	if err != nil {
-		log.Fatal(err)
+		l.Fatal(err)
 	}
 	outs := strings.Replace(string(out), "\"", "", -1)
 	s := strings.Split(outs, ":")
