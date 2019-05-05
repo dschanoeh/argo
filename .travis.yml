@@ -1,8 +1,15 @@
 language: go
 dist: xenial
 
+os:
+  - linux
+  - osx
+
 go:
   - master
+
+before_install:
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./install_imagemagick.sh; fi
 
 before_script:
   - go get gopkg.in/gographics/imagick.v3/imagick 
@@ -11,3 +18,7 @@ addons:
   apt:
     packages:
       - libmagickwand-dev
+      - build-essential
+  homebrew:
+    packages:
+      - imagemagick
