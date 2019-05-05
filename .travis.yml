@@ -8,6 +8,10 @@ os:
 go:
   - master
 
+cache:
+  directories:
+    - $HOME/imagemagick
+
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./install_imagemagick.sh; fi
 

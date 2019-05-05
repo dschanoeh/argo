@@ -1,5 +1,6 @@
 #!/bin/sh
 
+cd $HOME
 wget https://www.imagemagick.org/download/ImageMagick.tar.gz
 mkdir imagemagick
 tar xvzf ImageMagick.tar.gz -C imagemagick --strip-components 1
