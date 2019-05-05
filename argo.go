@@ -2,24 +2,25 @@ package main
 
 import (
 	"fmt"
-	"github.com/BurntSushi/toml"
-	"github.com/bclicn/color"
 	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
+
+	"github.com/BurntSushi/toml"
+	"github.com/bclicn/color"
+	"gopkg.in/gographics/imagick.v3/imagick"
 )
 
+// Config represents the argo configuration read from the config file
 type Config struct {
 	InputFolder  string
 	OutputFolder string
-	MinWidth     int
+	MinWidth     uint
 	Suffixes     []string
-	Widths       []int
-	Qualities    []int
+	Widths       []uint
+	Qualities    []uint
 	NoOverwrite  bool
 	Progressive  bool
 }
@@ -57,6 +58,9 @@ func main() {
 		l.Fatal(err)
 	}
 
+	imagick.Initialize()
+	defer imagick.Terminate()
+
 	for i, file := range files {
 		// Skip directories
 		if file.IsDir() {
@@ -81,12 +85,29 @@ func handleFile(file os.FileInfo, path string) {
 
 	filename := path + string(os.PathSeparator) + file.Name()
 
-	width, height, _ := getDimensions(filename)
+	fileHandle, err := os.Open(filename)
+	if err != nil {
+		fmt.Printf("Could not open file %s. Skipping...", file.Name())
+		return
+	}
+
+	mw := imagick.NewMagickWand()
+	err = mw.PingImageFile(fileHandle)
+	if err != nil {
+		fmt.Printf("Wasn't able to read file %s: %s", file.Name(), err.Error())
+		return
+	}
+	fileHandle.Close()
+
+	width := mw.GetImageWidth()
+	height := mw.GetImageHeight()
+
 	fmt.Printf("\tOriginal dimensions: %d x %d\n", width, height)
+
 	size := getSize(filename)
 	fmt.Printf("\tOriginal size: %d kb\n", size/1024)
 
-	for i, _ := range config.Suffixes {
+	for i := range config.Suffixes {
 		suffix := config.Suffixes[i]
 		targetWidth := config.Widths[i]
 		quality := config.Qualities[i]
@@ -132,19 +153,50 @@ func fullFileNames(fileName string, suffix string) (string, string) {
 	return fileNameIn, fileNameOut
 }
 
-func writeToOutput(fileNameIn string, fileNameOut string, width int, quality int) error {
-	params := []string{fileNameIn,
-		"-resize", strconv.Itoa(width),
-		"-sampling-factor", "4:2:0",
-		"-colorspace", "RGB",
-		"-quality", strconv.Itoa(quality)}
-	if config.Progressive {
-		params = append(params, "-interlace")
-		params = append(params, "JPEG")
+func writeToOutput(fileNameIn string, fileNameOut string, width uint, quality uint) error {
+	mw := imagick.NewMagickWand()
+
+	fileHandle, err := os.Open(fileNameIn)
+	defer fileHandle.Close()
+	if err != nil {
+		fmt.Printf("Could not open file to read %s. Skipping...", fileNameIn)
+		return err
 	}
-	params = append(params, fileNameOut)
-	cmd := exec.Command("convert", params...)
-	err := cmd.Run()
+
+	fileHandleOut, err := os.Create(fileNameOut)
+	defer fileHandleOut.Close()
+	if err != nil {
+		fmt.Printf("Could not open file to write %s. Skipping...", fileNameIn)
+		return err
+	}
+
+	err = mw.ReadImageFile(fileHandle)
+	if err != nil {
+		fmt.Printf("Wasn't able to read file %s: %s", fileNameIn, err.Error())
+		return err
+	}
+
+	originalWidth := mw.GetImageWidth()
+	originalHeight := mw.GetImageHeight()
+	scaleFactor := float64(width) / float64(originalWidth)
+	height := uint(scaleFactor * float64(originalHeight))
+
+	mw.ResizeImage(width, height, imagick.FILTER_LANCZOS)
+	//mw.SetSamplingFactors([]float64{1.0, 1.0, 1.0})
+	mw.SetColorspace(imagick.COLORSPACE_RGB)
+
+	if config.Progressive {
+		mw.SetImageInterlaceScheme(imagick.INTERLACE_JPEG)
+	}
+	mw.SetCompression(imagick.COMPRESSION_JPEG)
+	mw.SetCompressionQuality(quality)
+
+	err = mw.WriteImageFile(fileHandleOut)
+	if err != nil {
+		fmt.Printf("Error during write: %s", err.Error())
+		return err
+	}
+
 	return err
 }
 
@@ -163,16 +215,4 @@ func getSize(fileName string) int64 {
 		return -1
 	}
 	return fi.Size()
-}
-
-func getDimensions(filename string) (int, int, error) {
-	out, err := exec.Command("identify", []string{"-ping", "-format", "\"%[w]:%[h]\"", filename}...).Output()
-	if err != nil {
-		l.Fatal(err)
-	}
-	outs := strings.Replace(string(out), "\"", "", -1)
-	s := strings.Split(outs, ":")
-	width, err := strconv.Atoi(s[0])
-	height, err := strconv.Atoi(s[1])
-	return width, height, err
 }

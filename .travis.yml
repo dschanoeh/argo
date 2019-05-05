@@ -6,4 +6,4 @@ go:
 addons:
   apt:
     packages:
-      - imagemagick
+      - libmagickwand-dev
