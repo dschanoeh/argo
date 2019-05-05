@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.org/dschanoeh/argo.svg?branch=master)](https://travis-ci.org/dschanoeh/argo)
 # argo
 
 Asset resizing in go.

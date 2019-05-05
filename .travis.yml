@@ -3,6 +3,9 @@ language: go
 go:
   - master
 
+before_script:
+  - go get gopkg.in/gographics/imagick.v3/imagick 
+
 addons:
   apt:
     packages:
